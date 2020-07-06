@@ -10,17 +10,24 @@ public class BulletController : MonoBehaviour
 	private Vector3[] positions = new Vector3[50];
 	public Transform  player, thirdDot;
 	public Transform[] enemies;
-    private int countEnemies=0;
+    private int countEnemies=0, killEnemies = 0;
 	private bool onClick = false, kill = false, bullet = false;
 	public Text winText, countCoin;
+	public LineRenderer lineRenderer;
 	
 	void Start()
 	{
+		//lineRenderer.SetVertexCount(numberPoints);
+		lineRenderer.positionCount = numberPoints;
+		for(int i = 0; i < enemies.Length; i++)
+		{
+			if(enemies[i].transform.tag == "NotMainEnemy")
+				countEnemies++;
+		}
         if(Money.count == 0)
             countCoin.text = "You have no coin\n";
         else
             countCoin.text = "Your coin: " + Money.count.ToString();
-
 		StartCoroutine(Instructions("Try to kill this fucker"));
 	}
 	void Update()
@@ -32,20 +39,28 @@ public class BulletController : MonoBehaviour
             {
                 thirdDot.transform.position = hit.point;
             }
+		Debug.Log(countEnemies.ToString());
+
+			DrawLineTrajectory();
         }
         if(!bullet){
 		    if (Input.GetMouseButtonDown(0)) {
+				lineRenderer.enabled = true;
 			    onClick = true;
 		    }
 		    if (Input.GetMouseButtonUp(0)) {
-			    StartCoroutine(CalculeteTrajectory());
+			    StartCoroutine(CalculeteTrajectoryOfBullet());
                 bullet = true;
 			    onClick = false;
+				lineRenderer.enabled = false;
 		    }
         }
-        Debug.Log(onClick.ToString());
+//        Debug.Log(onClick.ToString());
 	}
 	public Vector3 CalculeteTrajectory (float t, Vector3 p0, Vector3 p1, Vector3 p2) {
+		p0 = new Vector3(p0.x,0.5f,p0.z);
+		p1 = new Vector3(p1.x,0.5f,p1.z);
+		p2 = new Vector3(p2.x,0.5f,p2.z);
 		float u = 1-t;
         float tt = t*t;
         float  uu = u*u;
@@ -55,7 +70,15 @@ public class BulletController : MonoBehaviour
 
         return p;
 	}
-	private IEnumerator CalculeteTrajectory () {
+	private void DrawLineTrajectory () {
+		float t;
+		for (int i = 1; i < numberPoints + 1  ; i++) {
+			t = i / (float)numberPoints;
+			positions[i - 1] = CalculeteTrajectory(t, player.position, thirdDot.position,enemies[countEnemies].position );
+		}
+		lineRenderer.SetPositions(positions);
+	}
+	private IEnumerator CalculeteTrajectoryOfBullet () {
 		float t;
 		for (int i = 1; i < numberPoints + 1  ; i++) {
             if(kill)
@@ -63,7 +86,7 @@ public class BulletController : MonoBehaviour
 			t = i / (float)numberPoints;
 			positions[i - 1] = CalculeteTrajectory(t, player.position, thirdDot.position,enemies[countEnemies].position );
             gameObject.transform.position = positions[i - 1];
-            yield return new WaitForSeconds(0.1f);
+            yield return new WaitForSeconds(0.01f);
 		}
         kill = false;
  
@@ -73,13 +96,19 @@ public class BulletController : MonoBehaviour
 		if (other.transform.tag == "Coin") {
 			Money.count++;
 			countCoin.text = "Your coin: " + Money.count.ToString();
-            Destroy(other.gameObject);
 		}
         if (other.transform.tag == "Enemy")
 		{
 			countEnemies++;
+			killEnemies++;
             bullet = false;
-            if((SceneManager.GetActiveScene().name == "Third level" && countEnemies == 2)||SceneManager.GetActiveScene().name != "Third level")
+			if(countEnemies == enemies.Length && killEnemies != enemies.Length)
+			{
+				SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+		   		StartCoroutine(Instructions("Try again"));
+            	return;
+			}
+            else if (countEnemies == enemies.Length && enemies.Length == killEnemies)
             {
                 winText.text = "Good job";
 			    NextScene();
@@ -88,27 +117,20 @@ public class BulletController : MonoBehaviour
             
             Vector3 v3 = other.transform.position;
             Camera.main.transform.position = new Vector3(10, Camera.main.transform.position.y,Camera.main.transform.position.z );
-
             player.transform.position = v3;
             gameObject.transform.position = v3;
-            //gameObject.transform.rotation = Quaternion.identity;
             kill = true;
-            Destroy(other.gameObject);
 		}
-        else
-        {
-            if (other.transform.tag == "Wall")
-		    {
-			    SceneManager.LoadScene(SceneManager.GetActiveScene().name);
-		        StartCoroutine(Instructions("Try again"));
-            }
+        if (other.transform.tag == "NotMainEnemy")
+			killEnemies++;
+
+        if (other.transform.tag == "Wall")
+		{
+			SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+		    StartCoroutine(Instructions("Try again"));
             return;
         }
-		
-	}
-	void OnCollisionEnter(Collision other) {
-		
-     
+        Destroy(other.gameObject);
 	}
 	IEnumerator Instructions(string str) {
 		winText.text = str;
@@ -116,19 +138,22 @@ public class BulletController : MonoBehaviour
 		winText.text = string.Empty;
 	}
 	private void NextScene() {
-		switch (SceneManager.GetActiveScene().name) {
-
-		case "First level":
-			SceneManager.LoadScene("Second level");
-			break;
-		case "Second level":
-			SceneManager.LoadScene("Third level");
-			break;
-		case "Third level":
-			SceneManager.LoadScene("Menu");
-			break;
-		default:
-			break;
+		
+		for(int i = 1; i < SceneManager.sceneCountInBuildSettings + 1;i++){
+				Debug.Log(i.ToString() + " level(1)");
+			if(i == SceneManager.sceneCountInBuildSettings - 1)
+			{
+				SceneManager.LoadScene("Menu");
+				break;
+			}
+			if(SceneManager.GetActiveScene().name == i.ToString() + " level")
+			{
+				i++;
+				Debug.Log(i.ToString() + " level(2)");
+				SceneManager.LoadScene(i.ToString() + " level");
+				break;
+			}
+			
 		}
         countCoin.text = "Your coin: " + Money.count.ToString();
 	}
